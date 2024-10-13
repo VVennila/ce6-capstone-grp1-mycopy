@@ -14,3 +14,8 @@ COPY . .
 
 EXPOSE 8080
 CMD [ "node", "index.js" ]
+
+# Test stage
+FROM base AS test
+# Run tests
+RUN npm test
