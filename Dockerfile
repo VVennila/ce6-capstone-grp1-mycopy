@@ -1,21 +1,19 @@
-FROM node:22.9-alpine
+# Use the official Node.js image as a base
+FROM node:16-alpine
 
-# # Create app directory
-WORKDIR /my-app
+# Set the working directory inside the container
+WORKDIR /app
 
-# # Install app dependencies
-# # A wildcard is used to ensure both package.json AND package-lock.json are copied
+# Copy package.json and package-lock.json to install dependencies
 COPY package*.json ./
 
+# Install dependencies
 RUN npm install
 
-# # Bundle app source
+# Copy the rest of the application code
 COPY . .
 
+# Expose port 8080 for the server
 EXPOSE 8080
-CMD [ "node", "index.js" ]
-
-# Test stage
-FROM base AS test
-# Run tests
-RUN npm test
+# Command to run the application
+CMD ["npm", "start"]
