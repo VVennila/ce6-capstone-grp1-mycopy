@@ -1,5 +1,10 @@
+variable "environment" {
+  description = "The deployment environment (dev, stage, prod)"
+  type        = string
+}
+
 locals {
-  prefix = "capstone-grp1"  #Change
+  prefix = "capstone-grp1-${var.environment}"  # Append environment to prefix
 }
 
 data "aws_caller_identity" "current" {}
@@ -37,12 +42,11 @@ module "ecs" {
   }
 
   services = {
-    capstone-grp1 = { #task def and service name -> #Change
+    capstone-grp1 = { # ECS Task and Service
       cpu    = 512
       memory = 1024
-      # Container definition(s)
       container_definitions = {
-        capstone-grp1-ecs-container = { #container name -> Change
+        capstone-grp1-ecs-container = {
           essential = true
           image     = "${data.aws_caller_identity.current.account_id}.dkr.ecr.${data.aws_region.current.name}.amazonaws.com/${local.prefix}-ecr:latest"
           port_mappings = [
@@ -53,10 +57,9 @@ module "ecs" {
           ]
         }
       }
-      assign_public_ip                   = true
-      deployment_minimum_healthy_percent = 100
-      subnet_ids                         = flatten(data.aws_subnets.public.ids)
-      security_group_ids                 = [module.ecs_sg.security_group_id]
+      assign_public_ip = true
+      subnet_ids       = flatten(data.aws_subnets.public.ids)
+      security_group_ids = [module.ecs_sg.security_group_id]
     }
   }
 }
@@ -66,7 +69,6 @@ module "ecs_sg" {
   version = "~> 5.1.0"
 
   name        = "${local.prefix}-ecs-sg"
-  description = "Security group for ecs"
   vpc_id      = data.aws_vpc.default.id
 
   ingress_cidr_blocks = ["0.0.0.0/0"]
