@@ -11,7 +11,7 @@ jobs:
   deploy:
     name: Deploy to ${{ github.ref_name }}
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name }}  # Set environment dynamically based on the branch
+    environment: ${{ github.ref_name }}
 
     steps:
     - name: Checkout code
@@ -43,10 +43,11 @@ jobs:
       id: build-image
       env:
         ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}  # Use secret for repository name
         IMAGE_TAG: ${{ github.sha }}
       run: |
-        docker build -t $ECR_REGISTRY/my-app:${{ github.ref_name }}:$IMAGE_TAG .
-        docker push $ECR_REGISTRY/my-app:${{ github.ref_name }}:$IMAGE_TAG
+        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.ref_name }}:$IMAGE_TAG .
+        docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.ref_name }}:$IMAGE_TAG
 
     - name: Download ECS task definition
       run: |
@@ -57,7 +58,7 @@ jobs:
       uses: aws-actions/amazon-ecs-render-task-definition@v1
       with:
         task-definition: task-definition.json
-        container-name: my-app-container
+        container-name: ven-ecs-container
         image: ${{ steps.build-image.outputs.image }}
 
     - name: Deploy updated task definition to ECS
@@ -65,5 +66,5 @@ jobs:
       with:
         task-definition: ${{ steps.task-def.outputs.task-definition }}
         service: my-app-service-${{ github.ref_name }}
-        cluster: my-app-cluster-${{ github.ref_name }}
+        cluster: ${{ secrets.ECS_CLUSTER }}  # Use secret for cluster name
         wait-for-service-stability: true
