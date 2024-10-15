@@ -4,7 +4,7 @@ variable "environment" {
 }
 
 locals {
-  prefix = "capstone-grp1-${var.environment}"  # Append environment to prefix
+  prefix = "ven-${var.environment}"  # Append environment to prefix
 }
 
 data "aws_caller_identity" "current" {}
