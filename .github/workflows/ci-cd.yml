@@ -1,70 +1,81 @@
 name: CI/CD Pipeline
 
 on:
+  pull_request:
+    branches:
+      - dev
+
   push:
     branches:
       - dev
-      - stage
-      - prod
 
 jobs:
-  deploy:
-    name: Deploy to ${{ github.ref_name }}
+  # CI Job for PR validation and tests
+  build-and-test:
     runs-on: ubuntu-latest
-    environment: ${{ github.ref_name }}
 
     steps:
-    - name: Checkout code
-      uses: actions/checkout@v3
+      # Checkout the code
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-    - name: Set up Node.js
-      uses: actions/setup-node@v2
-      with:
-        node-version: '16'
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16.x'
 
-    - name: Install dependencies
-      run: npm install
+      # Install dependencies
+      - name: Install Dependencies
+        run: npm install
 
-    - name: Run tests
-      run: npm test
+      # Linting
+      - name: Lint Code
+        run: npm run lint
 
-    - name: Configure AWS credentials
-      uses: aws-actions/configure-aws-credentials@v1
-      with:
-        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-        aws-region: ${{ secrets.AWS_REGION }}
+      # Run Tests (unit, integration)
+      - name: Run Tests
+        run: npm test
 
-    - name: Login to Amazon ECR
-      id: login-ecr
-      uses: aws-actions/amazon-ecr-login@v1
+  # Job for deployment (to staging and production)
+  deploy:
+    needs: build-and-test  # This ensures deployment only happens if tests pass
+    runs-on: ubuntu-latest
 
-    - name: Build, tag, and push image to ECR
-      id: build-image
-      env:
-        ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-        ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}  # Use secret for repository name
-        IMAGE_TAG: ${{ github.sha }}
-      run: |
-        docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.ref_name }}:$IMAGE_TAG .
-        docker push $ECR_REGISTRY/$ECR_REPOSITORY:${{ github.ref_name }}:$IMAGE_TAG
+    steps:
+      # Checkout the code
+      - name: Checkout Code
+        uses: actions/checkout@v3
 
-    - name: Download ECS task definition
-      run: |
-        aws ecs describe-task-definition --task-definition my-app-${{ github.ref_name }} --query taskDefinition > task-definition.json
+      # Deploy to the Staging Environment (on push to dev)
+      - name: Deploy to Staging
+        if: github.ref == 'refs/heads/dev'
+        run: |
+          echo "Deploying to Staging environment..."
+          # Add deployment commands here (e.g., AWS ECS, Docker, Kubernetes, etc.)
+          # Example for AWS ECS:
+          aws ecs update-service --cluster my-cluster --service my-service --force-new-deployment
 
-    - name: Update ECS task definition with new image
-      id: task-def
-      uses: aws-actions/amazon-ecs-render-task-definition@v1
-      with:
-        task-definition: task-definition.json
-        container-name: ven-ecs-container
-        image: ${{ steps.build-image.outputs.image }}
+      # Deploy to Production (on push to main or prod)
+      - name: Deploy to Production
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/prod'
+        run: |
+          echo "Deploying to Production environment..."
+          # Add production deployment commands here
+          aws ecs update-service --cluster my-cluster --service my-service --force-new-deployment
 
-    - name: Deploy updated task definition to ECS
-      uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-      with:
-        task-definition: ${{ steps.task-def.outputs.task-definition }}
-        service: my-app-service-${{ github.ref_name }}
-        cluster: ${{ secrets.ECS_CLUSTER }}  # Use secret for cluster name
-        wait-for-service-stability: true
+  # Post-deployment smoke tests
+  post-deployment-tests:
+    needs: deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Run Smoke Tests
+        run: |
+          echo "Running post-deployment smoke tests..."
+          # Add smoke test commands
+          npm run test:smoke
+
+      - name: Notify team
+        run: |
+          echo "Deployment completed, sending notifications..."
+          # Send notifications to Slack, Email, or other channels
